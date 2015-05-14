@@ -6,31 +6,24 @@
 #include <stdlib.h>
 #include "stringlib.h"  
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /* DECLARATION OF VARIABLES */
 
-void readConfigFile(char *, char *, char *, char *, double *, int *, int *, int *, double*, double *);
+void readConfigFile(char *, char *, char *, char *, double *, int *, int *, int *, double*);
 
 void initPositions(double **, int, double *);
 void write_xyz(double **, int, int, double, FILE *);
-void PrevCoord(double, double, double **, double **, double **);
+
 void initVelocities(int, int, double, double, double **);
 void write_Vel(int, int, double **, FILE *);
 void computeForce_Energy(int, int, int, double, double, double, double, double, double **, double **); 
 void write_Force(int, int, double **, FILE *);
-void CoordUpdate(int, double, double, double, double, double **, double **, double **, double **);
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*STATIC VARIABLES */
 
-const double kB = 8.314;		 // Boltzman Constat times Avogadro # (Gass constant) (changed after talkiing with Russell)
-const double mass = 0.0399;		 // Mass of Ar or any Lennard-Jones Liquid,Units in kg per mole (changed after talkiing with Russell)
+const double kB = 1.3806488E-23;	 // Boltzman Constat 
+const double mass = 6.626E-26;		 // Mass of Ar or any Lennard-Jones Liquid,Units in kg per each atom
 const double eps = 0.210849;		 // Units of kcal/mol, it is a meassure of strength
 const double sigma = 3.345;		 // Sigma value for Ar or any Lennard-Jones Liquid, it is a measure of range of potential, Units of Angstrums
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*MAIN CODE */
 
@@ -40,7 +33,7 @@ int main(){
 	double length;				// Length of cubic box
 	int n_iter;				// Number of MD iterations
 	double temp;				// Temperature
-	int delta_write;			// How often to write coordinates and log file in MD iterations
+	int delta_write;			// How often to write coordinates and log file in MD n_iterations
 	double cutoff;				// cutoff distance (Angstrom)
 	double cutoff_squ;			// nonbonding interaction cutoff distance squared
 
@@ -48,12 +41,11 @@ int main(){
 	//double mass;				// Mass of a Lennard-Jones Liquid 
 	// double eps;				// Epsilon value in Lennard-Jones Potential expression
 	double **atom_vel;			// Velocity array	
-	
+	//double sigma;				// Sigam Value for LJ liquid in Lennard-Jones Potential expression
 	double **coord;				// Particle coordinates array
-	double **O_coord;	
 	int i,j,k;				// Generic indeces
 	int seed=1;				// Random seed for velocity initialization
-	int iter;
+	
 
 	double sigma;				// sigma value
 	double sigma6;				// LJL sigma^6 value
@@ -65,10 +57,7 @@ int main(){
 	
 	double Kt_en;				// Total Kinetic Energy
 	double Tot_en;                  	// Total Energy
-	double dt;				// delta t value	
-	
-	double dt2;				// delta t value squared
-	double im;				// Argon's inverse mass
+
 
 
 	char log_FileName[1024];         	// Log file name
@@ -83,21 +72,19 @@ int main(){
 	FILE *velOut;
 	FILE *forceOut;
 
-
 /* READ CONFIG FILE FROM STANDARD IN */
 
-        readConfigFile(log_FileName, vel_FileName, traj_FileName, force_FileName, &temp, &n_atoms, &n_iter, &delta_write, &cutoff, &dt);
+        readConfigFile(log_FileName, vel_FileName, traj_FileName, force_FileName, &temp, &n_atoms, &n_iter, &delta_write, &cutoff);
 	
 	sigma6 = sigma*sigma*sigma*sigma*sigma*sigma;
-	dt2=dt*dt;
+
 	cutoff_squ = cutoff*cutoff;
 	kBT = kB*temp;
-	im = 1/mass;
 	printf("kB*T=%3.6E\n",kBT);
 
 	// allocate coordinate  and velocity arrays
 	coord = (double**) malloc(n_atoms*sizeof(double*));
-	O_coord = (double**) malloc(n_atoms*sizeof(double*));
+	
 	// allocate velocity array memory
 	atom_vel = (double**) calloc(n_atoms,sizeof(double*));   
 	
@@ -106,7 +93,6 @@ int main(){
 	  
 	for (i=0;i<n_atoms;i++) {
 		coord[i] = (double*) malloc(3*sizeof(double));
-		O_coord[i] = (double*) malloc(3*sizeof(double));	
 		atom_vel[i] = (double*) malloc(3*sizeof(double));	// Does not complie wiht calloc???
 		forces_on_atom[i] = (double*) malloc(3*sizeof(double));
 	}
@@ -121,12 +107,10 @@ int main(){
 	n_iter=0;		                 			// Number of iteration before MD loop
 	initPositions(coord, n_atoms, &box);
 	write_xyz(coord, n_atoms, n_iter, box, xyzOut);
-	
+	computeForce_Energy(n_atoms, n_iter, delta_write, box, cutoff_squ, eps, sigma6, Tff, coord, forces_on_atom);
 
 	initVelocities(n_atoms, seed, mass, kBT, atom_vel);
 	write_Vel(n_atoms, n_iter, atom_vel, velOut);
-	
-	computeForce_Energy(n_atoms, n_iter, delta_write, box, cutoff_squ, eps, sigma6, Tff, coord, forces_on_atom);	
 	write_Force(n_atoms, n_iter, forces_on_atom, forceOut);
 
 	fflush(xyzOut);
@@ -134,55 +118,21 @@ int main(){
 	fflush(forceOut);
 	
 
-////////////////////////////////////////////////////
 
-/* Run MD itterations  */
-// Use Verlet integration
+	// start MD loops/n_iterations
+
+		// compute energies and forces
+		//
+		// propogate in time (wrap coordinates?)
 	
-	
-	for(iter=1;iter>n_iter;iter++) {
-		CoordUpdate(n_atoms, im, dt, dt2, box, coord, atom_vel, forces_on_atom, O_coord);
 
-		computeForce_Energy(n_atoms, iter, delta_write, box, cutoff_squ, eps, sigma6, Tot_en, coord, forces_on_atom);
-	
-		
-
-		if(iter%delta_write==0) {
-
-		
-			
-			write_xyz(coord, n_atoms, iter, box, xyzOut);
-			
-			
-			
-			write_Force(n_atoms, iter, forces_on_atom, forceOut);
-
-			fflush(xyzOut);
-			
-			fflush(forceOut);
-
-		}	
-
-	}
-
-
-
-	fclose(xyzOut);
-	fclose(forceOut);
 
 }
-
-	
-
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /* SUBROUTINS AND FUNCTIONS */
 
 /* READ CONFIG FILE */
 	
-void readConfigFile(char *log_FileName, char *vel_FileName, char *traj_FileName, char *force_FileName, double *temp, int *n_atoms, int *n_iter, int *delta_write, double *cutoff, double *dt)
+void readConfigFile(char *log_FileName, char *vel_FileName, char *traj_FileName, char *force_FileName, double *temp, int *n_atoms, int *n_iter, int *delta_write, double *cutoff)
 	{
 
 	char buffer[1024];
@@ -211,15 +161,13 @@ void readConfigFile(char *log_FileName, char *vel_FileName, char *traj_FileName,
 	               *delta_write = atoi(string_secondword(buffer));
 	       } else if (strncmp(firstWord,"cutoff",6)==0) {
 		       *cutoff = atof(string_secondword(buffer));
-	       } else if (strncmp(firstWord,"dt",2)==0) {
-		       *cutoff = atof(string_secondword(buffer));
 	       }
 	}
 }
 
 
 
-////////////////////////////////////////////////////
+
 
 
 /* Initilazie Positions */
@@ -241,7 +189,7 @@ void initPositions(double **coord, int n_atoms, double *box) {
 	}
 
 	// determine the size of the bins
-	fBoxD = 3.55;        	// seems unitless since multipleied by (x+0.5) gives xPos but I think it gives dimention to particles 
+	fBoxD = 3.55;        	// seems unitless since multipleied by (x+0.5) gives xPos but I think it gives dimmention to particles 
 	*box = iBoxD*fBoxD;     // calculate dimension of the box
 
 	// add an atom to each created bin 
@@ -268,22 +216,6 @@ void initPositions(double **coord, int n_atoms, double *box) {
 		}
 	}
 }
-
-/////////////////////////////////////////////////////////
-
-// Compute pervious step coordinates
-	
-void PrevCoord(double n_atoms, double dt, double **coord, double **atom_vel, double **O_coord) {
-
-	int i, j;
-	
-	for(i=0; i<n_atoms; i++) {
-		for(j=0; j<3; j++) {
-		O_coord[i][j] = coord[i][j] - atom_vel[i][j]*dt;	
-		}
-	}
-}	
-//////////////////////////////////////////////////////////////
 
 /* Initialize Velocities */
 
@@ -320,9 +252,10 @@ void initVelocities(int n_atoms, int seed, double mass, double kBT, double **ato
 		}
 
 	}
-
 }
-////////////////////////////////////////////////////
+
+/* Run MD itterations  */
+// Use Verlet integration
 
 // Sub: Compute Energy and forces
 
@@ -341,12 +274,6 @@ void computeForce_Energy(int n_atoms, int n_iter, int delta_write, double box, d
 
 	Tff = 0.0;
 
-	for(atom1=0; atom1<n_atoms; atom1++) {
-		for(j=0;j<3;j++) {
-			forces_on_atom[atom1][j] = 0.0;
-		}
-	}
-	
 
 	for(atom1=0; atom1<n_atoms-1; atom1++){
 
@@ -382,40 +309,23 @@ void computeForce_Energy(int n_atoms, int n_iter, int delta_write, double box, d
 		}
 	}
 
-//printf("ff=%f", ff);
+printf("ff=%f", ff);
 }
-
-////////////////////////////////////////////////////
-
 // Sub: Integrations (Propagations)
 
 /* VERLET INTEGRATION STEP */
 
+void verletInteg()
+{
+	int i,j;
+	for(i=0;i<n_atoms;i++) {
+	for(j=0;j<3;j++){
 
-
-// compute new coordinates
-
-
-void CoordUpdate(int n_atoms, double im, double dt, double dt2, double box, double **coord, double **atom_vel, double **forces_on_atom, double **O_coord) {
-	
-	int i, j;
-	double element;
-	
-	for (i=0; i<n_atoms; i++) {
-		for (j=0; j<3; j++) {
-			element = 2*coord[i][j] - O_coord[i][j] + im*dt2*forces_on_atom[i][j];
-			if(element<0) {
-				element += box;
-			} else if(element > box) {
-				element -= box;
-			}
-			coord[i][j] = element;
-			element = 0.0;
-		}
 	}
 }
 
-////////////////////////////////////////////////////
+
+
 
 // Sub: Write Output data
 
@@ -433,8 +343,6 @@ void write_xyz(double **coord, int n_atoms, int n_iter, double box, FILE *xyzOut
 
 	}
 }
-
-
 
 // Write Velocities 
 
@@ -461,7 +369,6 @@ void write_Force(int n_atoms, int n_iter, double **forces_on_atom, FILE *forceOu
 	}
 }
 
-////////////////////////////////////////////////////
 //
 //
 //
