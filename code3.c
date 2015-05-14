@@ -396,7 +396,7 @@ void computeForce_Energy(int n_atoms, int n_iter, int delta_write, double box, d
 	if(iter%delta_write==0) {
 		Tpe = 4.0*eps*Tff;
 	}
-printf("Tpe=%f\t", Tpe);
+//printf("Tpe=%f\t", Tpe);
 }
 
 
