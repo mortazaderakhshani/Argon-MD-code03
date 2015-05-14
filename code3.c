@@ -25,7 +25,7 @@ void CoordUpdate(int, double, double, double, double, double **, double **, doub
 
 /*STATIC VARIABLES */
 
-const double kB = 8.314;		 // Boltzman Constat times Avogadro # (Gass constant) (changed after talkiing with Russell)
+const double kB = 8.314;		 // Boltzman Constat times Avogadro # (Gass constant) (changed after talking with Russell)
 const double mass = 0.0399;		 // Mass of Ar or any Lennard-Jones Liquid,Units in kg per mole (changed after talkiing with Russell)
 const double eps = 0.210849;		 // Units of kcal/mol, it is a meassure of strength
 const double sigma = 3.345;		 // Sigma value for Ar or any Lennard-Jones Liquid, it is a measure of range of potential, Units of Angstrums
@@ -50,21 +50,20 @@ int main(){
 	double **atom_vel;			// Velocity array	
 	
 	double **coord;				// Particle coordinates array
-	double **O_coord;	
+	double **O_coord;			// Old coordinate array of Argon Particles
 	int i,j,k;				// Generic indeces
 	int seed=1;				// Random seed for velocity initialization
-	int iter;
-
+	
 	double sigma;				// sigma value
 	double sigma6;				// LJL sigma^6 value
 
 	
 	double **forces_on_atom;		// Force acting on atom array fx, fy, fz
 	
-	double Tff;				// Total LJ potential energy 
+
+	double Tff;				// update LJ potential energy 
 	
-	double Kt_en;				// Total Kinetic Energy
-	double Tot_en;                  	// Total Energy
+	double Tpe;                  		// Total LJ Energy
 	double dt;				// delta t value	
 	
 	double dt2;				// delta t value squared
@@ -118,7 +117,7 @@ int main(){
 
 	// inintialize positions and velocities+ compute forces//
 
-	n_iter=0;		                 			// Number of iteration before MD loop
+	           			
 	initPositions(coord, n_atoms, &box);
 	write_xyz(coord, n_atoms, n_iter, box, xyzOut);
 	
@@ -126,7 +125,7 @@ int main(){
 	initVelocities(n_atoms, seed, mass, kBT, atom_vel);
 	write_Vel(n_atoms, n_iter, atom_vel, velOut);
 	
-	computeForce_Energy(n_atoms, n_iter, delta_write, box, cutoff_squ, eps, sigma6, Tff, coord, forces_on_atom);	
+	computeForce_Energy(n_atoms, n_iter, delta_write, box, cutoff_squ, eps, sigma6, Tpe, coord, forces_on_atom);	
 	write_Force(n_atoms, n_iter, forces_on_atom, forceOut);
 
 	fflush(xyzOut);
@@ -138,12 +137,12 @@ int main(){
 
 /* Run MD itterations  */
 // Use Verlet integration
+	int iter;
 	
-	
-	for(iter=1;iter>n_iter;iter++) {
+	for(iter=1;iter<n_iter;iter++) {
 		CoordUpdate(n_atoms, im, dt, dt2, box, coord, atom_vel, forces_on_atom, O_coord);
 
-		computeForce_Energy(n_atoms, iter, delta_write, box, cutoff_squ, eps, sigma6, Tot_en, coord, forces_on_atom);
+		computeForce_Energy(n_atoms, iter, delta_write, box, cutoff_squ, eps, sigma6, Tpe, coord, forces_on_atom);
 	
 		
 
@@ -327,19 +326,24 @@ void initVelocities(int n_atoms, int seed, double mass, double kBT, double **ato
 // Sub: Compute Energy and forces
 
 void computeForce_Energy(int n_atoms, int n_iter, int delta_write, double box, double cutoff_squ, double eps, double sigma6, double Tff, double **coord, double **forces_on_atom) {
-
-	 
+	
+	int iter;
 	int atom1;
         int atom2;
         double r2;
         double r2rev;
         double r6rev;
         double rev6sig6;
-        int j;
-        double element[3] = {0.0, 0.0, 0.0};
-        double ff;
 
-	Tff = 0.0;
+        int j;
+	
+
+        double element[3] = {0.0, 0.0, 0.0};
+
+	double ff;
+	double Tpe;
+
+	//Tff = 0.0;
 
 	for(atom1=0; atom1<n_atoms; atom1++) {
 		for(j=0;j<3;j++) {
@@ -376,14 +380,26 @@ void computeForce_Energy(int n_atoms, int n_iter, int delta_write, double box, d
 					forces_on_atom[atom1][j]+= ff*element[j];	  // forces acting on atoms
 					forces_on_atom[atom2][j]+= -ff*element[j];
 				}
-			}
+			if(iter%delta_write==0) {
+					Tff += rev6sig6*(rev6sig6 - 1.0);	// updating forces
+				}
 
-			
+			} else {
+				for(j=0;j<3;j++) {
+					forces_on_atom[atom1][j] += 0.0;
+					forces_on_atom[atom2][j] += 0.0;
+				}
+			}
 		}
 	}
-
-//printf("ff=%f", ff);
+	
+	if(iter%delta_write==0) {
+		Tpe = 4.0*eps*Tff;
+	}
+printf("Tpe=%f\t", Tpe);
 }
+
+
 
 ////////////////////////////////////////////////////
 
@@ -404,7 +420,7 @@ void CoordUpdate(int n_atoms, double im, double dt, double dt2, double box, doub
 	for (i=0; i<n_atoms; i++) {
 		for (j=0; j<3; j++) {
 			element = 2*coord[i][j] - O_coord[i][j] + im*dt2*forces_on_atom[i][j];
-			// wrapping the particles within the box...
+			// wrapping molecules within box
 			if(element<0) {
 				element += box;
 			} else if(element > box) {
