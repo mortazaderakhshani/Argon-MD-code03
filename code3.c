@@ -25,7 +25,7 @@ void CoordUpdate(int, double, double, double, double, double **, double **, doub
 
 /*STATIC VARIABLES */
 
-const double kB = 8.314;		 // Boltzman Constat times Avogadro # (Gass constant) (changed after talking with Russell)
+const double R = 8.314;		 // Boltzman Constat times Avogadro # (Gass constant) (changed after talking with Russell)
 const double mass = 0.0399;		 // Mass of Ar or any Lennard-Jones Liquid,Units in kg per mole (changed after talkiing with Russell)
 const double eps = 0.210849;		 // Units of kcal/mol, it is a meassure of strength
 const double sigma = 3.345;		 // Sigma value for Ar or any Lennard-Jones Liquid, it is a measure of range of potential, Units of Angstrums
@@ -43,8 +43,8 @@ int main(){
 	int delta_write;			// How often to write coordinates and log file in MD iterations
 	double cutoff;				// cutoff distance (Angstrom)
 	double cutoff_squ;			// nonbonding interaction cutoff distance squared
-
-	double kBT;				// Boltzman constant*Temperature Units of energy (J)
+	//double R;
+	double RT;				// Boltzman constant*Temperature Units of energy (J)
 	//double mass;				// Mass of a Lennard-Jones Liquid 
 	// double eps;				// Epsilon value in Lennard-Jones Potential expression
 	double **atom_vel;			// Velocity array	
@@ -90,13 +90,14 @@ int main(){
 	sigma6 = sigma*sigma*sigma*sigma*sigma*sigma;
 	dt2=dt*dt;
 	cutoff_squ = cutoff*cutoff;
-	kBT = kB*temp;
+	RT = R*temp;
 	im = 1/mass;
-	printf("kB*T=%3.6E\n",kBT);
+	printf("R=%f T=%f\n",R,temp);
+	printf("R*T=%3.6E %3.6E \n",RT, im);
 
 	// allocate coordinate  and velocity arrays
-	coord = (double**) malloc(n_atoms*sizeof(double*));
-	O_coord = (double**) malloc(n_atoms*sizeof(double*));
+	coord = (double**) calloc(n_atoms,sizeof(double*));
+	O_coord = (double**) calloc(n_atoms,sizeof(double*));
 	// allocate velocity array memory
 	atom_vel = (double**) calloc(n_atoms,sizeof(double*));   
 	
@@ -104,10 +105,10 @@ int main(){
 	forces_on_atom = (double**) calloc(n_atoms,sizeof(double*));        
 	  
 	for (i=0;i<n_atoms;i++) {
-		coord[i] = (double*) malloc(3*sizeof(double));
-		O_coord[i] = (double*) malloc(3*sizeof(double));	
-		atom_vel[i] = (double*) malloc(3*sizeof(double));	// Does not complie wiht calloc???
-		forces_on_atom[i] = (double*) malloc(3*sizeof(double));
+		coord[i] = (double*) calloc(3,sizeof(double));
+		O_coord[i] = (double*) calloc(3,sizeof(double));	
+		atom_vel[i] = (double*) calloc(3,sizeof(double));	// Does not complie wiht calloc???
+		forces_on_atom[i] = (double*) calloc(3,sizeof(double));
 	}
 	// open log files
 	logOut = fopen(log_FileName,"w");
@@ -122,7 +123,7 @@ int main(){
 	write_xyz(coord, n_atoms, n_iter, box, xyzOut);
 	
 
-	initVelocities(n_atoms, seed, mass, kBT, atom_vel);
+	initVelocities(n_atoms, seed, mass, RT, atom_vel);
 	write_Vel(n_atoms, n_iter, atom_vel, velOut);
 	
 	computeForce_Energy(n_atoms, n_iter, delta_write, box, cutoff_squ, eps, sigma6, Tpe, coord, forces_on_atom);	
@@ -286,7 +287,7 @@ void PrevCoord(double n_atoms, double dt, double **coord, double **atom_vel, dou
 
 /* Initialize Velocities */
 
-void initVelocities(int n_atoms, int seed, double mass, double kBT, double **atom_vel) {
+void initVelocities(int n_atoms, int seed, double mass, double RT, double **atom_vel) {
 	 
 	double sumv[3] = {0.0, 0.0, 0.0};
 	double msv = 0;
@@ -310,8 +311,8 @@ void initVelocities(int n_atoms, int seed, double mass, double kBT, double **ato
 		}
                 //printf("\n");
 	}
-	scale_factor = sqrt(3.0*kBT/(mass*msv)); 
-	// printf("scale factor %f mass %f", kBT, mass);
+	scale_factor = sqrt(3.0*RT/(mass*msv)); 
+	// printf("scale factor %f mass %f", RT, mass);
 	for(i=0; i<n_atoms; i++) {
 		for(j=0; j<3; j++) {
 			atom_vel[i][j] = (atom_vel[i][j] - sumv[j])*scale_factor;
