@@ -28,7 +28,7 @@ void Velupdate(double , double **, double **, double **);
 
 const double R = 8.314;			 // Boltzman Constat times Avogadro # (Gass constant) J/(mol.k)
 const double mass = 0.03995;		 // Mass of Ar or any Lennard-Jones Liquid,Units in kg/mol
-const double eps = 1.6567;		 // Units of J/mol, it is a meassure of strength
+const double eps = 1.6567;		 // Units of J/mol-------- or 0.210849 Units of kcal/mol, it is a meassure of strength
 const double sigma = 3.345;		 // Sigma value for Ar or any Lennard-Jones Liquid, it is a measure of range of potential, Units of Angstrums
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -403,8 +403,8 @@ void computeForce_Energy(int n_atoms, int iter, int delta_write, double box, dou
 					forces_on_atom[atom2][j]+= ff*element[j];
 				}
 				if(iter%delta_write==0) {
-					Tff += rev6sig6*(rev6sig6 - 1.0);	// adding forces forces in each deltawrite
-					//printf("Tff=%f.3\n", Tff);
+					Tff += rev6sig6*(rev6sig6 - 1.0);	// adding potentials in each deltawrite
+					printf("Tff=%f.3\n", Tff);
 				}
 
 
@@ -416,7 +416,7 @@ void computeForce_Energy(int n_atoms, int iter, int delta_write, double box, dou
 	if(iter%delta_write==0) {
 		*Tpe = 4.0*eps*Tff;	// 4*epsilon is factored out for saving computationl time
 	}
-printf("Tpe=%f\n", Tpe);
+//printf("Tpe=%f\n", Tpe);
 
 }
 
