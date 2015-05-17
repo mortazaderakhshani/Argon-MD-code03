@@ -20,7 +20,7 @@ void write_Vel(int, int, double **, FILE *);
 void computeForce_Energy(int, int, int, double, double, double, double, double *, double **, double **); 
 void write_Force(int, int, double **, FILE *);
 void CoordUpdate(int, double, double, double, double, double **, double **, double **, double **);
-void Velupdate(double , double **, double **, double **);
+void Velupdate(int, int, double , double **, double **, double **, double *);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -52,12 +52,13 @@ int main(){
 	int seed=1;				// Random seed for velocity initialization
 	double sigma6;				// LJL sigma^6 value
 	double **forces_on_atom;		// Force acting on atom array fx, fy, fz
-	//double Tff;				// update LJ potential energy 
+	//double Tff;				// add LJ potential energy 
 	double Tpe;                  		// Total LJ Energy
 	double dt;				// delta t value	
 	double dt2;				// delta t value squared
 	double im;				// Argon's inverse mass
-
+	double Tke;				// Total Kinetic Energy
+	double TE;				// Total Energy
 	int iter=0;
 	char log_FileName[1024];         	// Log file name
 	char vel_FileName[1024];         	// Velocity file name
@@ -125,6 +126,8 @@ int main(){
 	initVelocities(n_atoms, seed, mass, RT, atom_vel);
 	write_Vel(n_atoms, n_iter, atom_vel, velOut);
 	
+	Tke=0.5*mass*R*temp;
+	printf("KE=%16.6E\n", Tke);
 	computeForce_Energy(n_atoms, iter, delta_write, box, cutoff_squ, eps, sigma6, &Tpe, coord, forces_on_atom);	
 	write_Force(n_atoms, n_iter, forces_on_atom, forceOut);
 	
@@ -140,7 +143,8 @@ int main(){
 /* Run MD itterations  */
 // Use Verlet integration
 	
-
+/*	Tke=0.0;*/
+/*	Tpe=0.0;*/
 	
 	for(iter=0;iter<n_iter;iter++) {
 		
@@ -149,14 +153,16 @@ int main(){
 		CoordUpdate(n_atoms, im, dt, dt2, box, coord, atom_vel, forces_on_atom, O_coord);
 		
 
-
 		computeForce_Energy(n_atoms, iter, delta_write, box, cutoff_squ, eps, sigma6, &Tpe, coord, forces_on_atom);
  
 		
-		Velupdate(dt, coord, atom_vel, O_coord);
+		Velupdate(iter, delta_write, dt, coord, atom_vel, O_coord, &Tke);
 
 		if(iter%delta_write==0) {
 
+		printf("Tke=%12.6E\n", Tke);
+/*TE=Tpe+Tke;*/
+		
 		//printf("Iteration=%d\t", iter);
 		//printf("cutoff_squ is=%.3f\n", cutoff_squ);
 			
@@ -357,9 +363,9 @@ void computeForce_Energy(int n_atoms, int iter, int delta_write, double box, dou
         double element[3] = {0.0, 0.0, 0.0};
 
 	double ff;
-	double Tff;
+	//double Tff;
 
-	Tff = 0.0;
+	//Tff = 0.0;
 	*Tpe = 0.0;
 
 	for(atom1=0; atom1<n_atoms; atom1++) {
@@ -403,8 +409,8 @@ void computeForce_Energy(int n_atoms, int iter, int delta_write, double box, dou
 					forces_on_atom[atom2][j]+= ff*element[j];
 				}
 				if(iter%delta_write==0) {
-					Tff += rev6sig6*(rev6sig6 - 1.0);	// adding potentials in each deltawrite
-					printf("Tff=%f.3\n", Tff);
+					*Tpe += 4.0*eps*rev6sig6*(rev6sig6 - 1.0);	// Total potential Energy in each deltawrite
+					printf("Tpe=%16.6E\n", *Tpe);
 				}
 
 
@@ -413,10 +419,6 @@ void computeForce_Energy(int n_atoms, int iter, int delta_write, double box, dou
 		}
 	}
 	
-	if(iter%delta_write==0) {
-		*Tpe = 4.0*eps*Tff;	// 4*epsilon is factored out for saving computationl time
-	}
-//printf("Tpe=%f\n", Tpe);
 
 }
 
@@ -461,16 +463,27 @@ void CoordUpdate(int n_atoms, double im, double dt, double dt2, double box, doub
 // compute new velocities
 
 
-void Velupdate(double dt, double **coord, double **atom_vel, double **O_coord) {
+void Velupdate(int iter, int delta_write, double dt, double **coord, double **atom_vel, double **O_coord, double *Tke) {
 	
 	int i, j;
 	int n_atoms;
-	
+	double mvs=0.0;
+	*Tke=0.0;
+
 	for (i=0; i<n_atoms; i++) {
 		for (j=0; j<3; j++) {
 			atom_vel[i][j] = (coord[i][j] - O_coord[i][j])/dt;
+			}
+			if(iter%delta_write==0) {
+			mvs +=(atom_vel[i][j]*atom_vel[i][j]);
+			
 		}
+
 	}
+			
+/*			printf("mvs=%f\n", mvs);*/
+/*			*Tke=0.5*mass*mvs;*/
+/*			printf("Tke=%12.6E\n", *Tke);*/
 }
 
 ////////////////////////////////////////////////////
